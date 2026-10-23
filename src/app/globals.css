@@ -1,0 +1,126 @@
+@import "tailwindcss";
+
+:root {
+  --bg: #f6f7f9;
+  --surface: #ffffff;
+  --surface-2: #f1f4f7;
+  --ink: #0f172a;
+  --muted: #5b6678;
+  --border: #e3e8ef;
+  --primary: #0f766e;
+  --primary-ink: #ffffff;
+  --primary-soft: #e6f4f2;
+  --accent: #4f46e5;
+  --accent-soft: #eef0ff;
+  --warn: #b45309;
+  --warn-soft: #fff6e5;
+  --danger: #b91c1c;
+  --danger-soft: #fdecec;
+  --success: #15803d;
+  --success-soft: #e8f6ec;
+  --ring: #0f766e;
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0a0f1c;
+    --surface: #111827;
+    --surface-2: #172033;
+    --ink: #e6eaf2;
+    --muted: #9aa5b8;
+    --border: #233047;
+    --primary: #2dd4bf;
+    --primary-ink: #04201d;
+    --primary-soft: #0f2e2c;
+    --accent: #a5b4fc;
+    --accent-soft: #1d2142;
+    --warn: #fbbf24;
+    --warn-soft: #2b2110;
+    --danger: #f87171;
+    --danger-soft: #2d1416;
+    --success: #4ade80;
+    --success-soft: #11271a;
+    --ring: #2dd4bf;
+    color-scheme: dark;
+  }
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-ink: var(--ink);
+  --color-muted: var(--muted);
+  --color-border: var(--border);
+  --color-primary: var(--primary);
+  --color-primary-ink: var(--primary-ink);
+  --color-primary-soft: var(--primary-soft);
+  --color-accent: var(--accent);
+  --color-accent-soft: var(--accent-soft);
+  --color-warn: var(--warn);
+  --color-warn-soft: var(--warn-soft);
+  --color-danger: var(--danger);
+  --color-danger-soft: var(--danger-soft);
+  --color-success: var(--success);
+  --color-success-soft: var(--success-soft);
+  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+  -webkit-tap-highlight-color: transparent;
+}
+
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  overflow-x: hidden;
+  overscroll-behavior-y: none;
+}
+
+:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+.brand-gradient {
+  background-image: linear-gradient(135deg, #0f766e 0%, #155e75 45%, #4338ca 100%);
+}
+
+.text-gradient {
+  background-image: linear-gradient(120deg, var(--primary), var(--accent));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+/* Safe-area helpers for notched phones in standalone mode. */
+.pt-safe { padding-top: env(safe-area-inset-top); }
+.pb-safe { padding-bottom: env(safe-area-inset-bottom); }
+.mb-bottom-nav { margin-bottom: calc(4.25rem + env(safe-area-inset-bottom)); }
+
+/* Reading comfort for lesson content. */
+.prose-lesson p { margin: 0.75rem 0; line-height: 1.75; }
+.prose-lesson ul, .prose-lesson ol { margin: 0.75rem 0; padding-left: 1.25rem; }
+.prose-lesson ul { list-style: disc; }
+.prose-lesson ol { list-style: decimal; }
+.prose-lesson li { margin: 0.35rem 0; line-height: 1.7; }
+.prose-lesson h3, .prose-lesson h4 { font-weight: 600; margin: 1.25rem 0 0.5rem; }
+.prose-lesson code { background: var(--surface-2); padding: 0.1rem 0.35rem; border-radius: 0.35rem; font-size: 0.9em; }
+
+@keyframes fade-up {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.animate-fade-up { animation: fade-up 0.25s ease-out both; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
