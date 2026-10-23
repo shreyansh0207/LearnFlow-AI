@@ -23,7 +23,7 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
   if (!data) return jsonError(404, "not_found", "Journey not found.");
 
   try {
-    // A second click while a roadmap is generating waits for the same Gemini call.
+    // A second click while a roadmap is generating waits for the same Groq call.
     const result = await singleFlight(`curriculum:${user.id}:${id}`, () => buildCurriculum(db, user.id, data));
     return NextResponse.json(result);
   } catch (err) {

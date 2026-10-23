@@ -11,7 +11,7 @@ A personalised AI learning companion: learn any subject from zero with an adapti
 1. [Stack](#stack)
 2. [Quick start (local)](#quick-start-local)
 3. [Neon database setup](#neon-database-setup)
-4. [Gemini setup](#gemini-setup)
+4. [Groq setup](#groq-setup)
 5. [Deploying to Vercel](#deploying-to-vercel)
 6. [Installing the app (PWA)](#installing-the-app-pwa)
 7. [How it works](#how-it-works)
@@ -32,9 +32,9 @@ A personalised AI learning companion: learn any subject from zero with an adapti
 | Database | **Neon Postgres** via `node-postgres` (`pg`) on the pooled connection, attached to Vercel Fluid compute (`@vercel/functions`) |
 | Auth | Built in and stored in Neon: scrypt password hashes, database sessions in httpOnly cookies |
 | Authorization | Postgres Row Level Security: every user query runs as the `authenticated` role with `app.user_id` set for that transaction |
-| AI | **Google Gemini** via the official `@google/genai` SDK (server only), JSON-schema structured output validated by Zod |
+| AI | **Groq** (default model `openai/gpt-oss-120b`) via the official `groq-sdk` (server only), strict JSON-schema structured output validated by Zod |
 | PWA | Web app manifest (`app/manifest.ts`), hand-written service worker (`public/sw.js`), offline page |
-| Tests | Vitest (unit), PGlite (real Postgres in-process, same migrations), opt-in live Gemini/source tests, Playwright browser checks |
+| Tests | Vitest (unit), PGlite (real Postgres in-process, same migrations), opt-in live Groq/source tests, Playwright browser checks |
 
 ---
 
@@ -44,15 +44,15 @@ Requires **Node.js 20.6+**.
 
 ```bash
 npm install
-cp .env.example .env.local      # set DATABASE_URL and GEMINI_API_KEY
+cp .env.example .env.local      # set DATABASE_URL and GROQ_API_KEY
 npm run db:migrate              # creates all tables, roles, RLS policies and the catalog seed in Neon
-npm run ai:check                # confirms GEMINI_MODEL can actually generate with your key
+npm run ai:check                # confirms GROQ_MODEL can actually generate with your key
 npm run dev                     # http://localhost:3000
 ```
 
 Then open <http://localhost:3000/signup>, create an account, and follow onboarding.
 
-Without `DATABASE_URL`, every page shows a **Setup required** screen naming the missing variable. It doesn't crash, and nothing is reported as saved. Without `GEMINI_API_KEY`, AI features show *"AI is not configured…"* with setup steps.
+Without `DATABASE_URL`, every page shows a **Setup required** screen naming the missing variable. It doesn't crash, and nothing is reported as saved. Without `GROQ_API_KEY`, AI features show *"AI is not configured…"* with setup steps.
 
 | Command | Purpose |
 |---|---|
@@ -60,17 +60,17 @@ Without `DATABASE_URL`, every page shows a **Setup required** screen naming the 
 | `npm run build && npm start` | Production build and server (needed to test the service worker and installation) |
 | `npm run db:migrate` | Apply `db/migrations/*.sql` to Neon (direct connection, once each, tracked in `meta.schema_migrations`) |
 | `npm run db:verify` | Check tables, RLS and role scoping on Neon |
-| `npm run ai:check` | List Gemini models for your key, then make a real call with `GEMINI_MODEL` |
+| `npm run ai:check` | List Groq models for your key, then make a real call with `GROQ_MODEL` |
 | `npm run lint` / `npm run typecheck` / `npm test` | Quality checks |
-| `npm run test:live` | Live tests against real Gemini (`LIVE_GEMINI=1`) and sources (`LIVE_SOURCES=1`) |
+| `npm run test:live` | Live tests against real Groq (`LIVE_GROQ=1`) and sources (`LIVE_SOURCES=1`) |
 | `npm run icons` / `npm run catalog:seed` | Regenerate icons/splash, or the catalog seed migration |
 
 ### Test the AI locally
 
-1. Sign in and open **Settings → AI status & Gemini self-test** (`/settings/ai`).
+1. Sign in and open **Settings → AI status & Groq self-test** (`/settings/ai`).
 2. The status card makes a tiny real call to confirm the configured model works with your key.
-3. **Run self-test** sends *"Teach me compound interest from absolute beginner level, give one practical example, and finish with three quiz questions."* through the server-side Gemini service and renders the answer.
-4. From the command line: `LIVE_GEMINI=1 npm run test:live` runs the same prompt, a structured-JSON quiz, and the error cases (unavailable model, invalid key, missing key).
+3. **Run self-test** sends *"Teach me compound interest from absolute beginner level, give one practical example, and finish with three quiz questions."* through the server-side Groq service and renders the answer.
+4. From the command line: `LIVE_GROQ=1 npm run test:live` runs the same prompt, a structured-JSON quiz, and the error cases (unavailable model, invalid key, missing key).
 
 ---
 
@@ -102,16 +102,17 @@ All data lives in one Neon Postgres database: accounts, sessions, learning histo
 
 ---
 
-## Gemini setup
+## Groq setup
 
-1. Create an API key at <https://aistudio.google.com/apikey>. LearnFlow uses the **Gemini API** endpoint.
-2. Set `GEMINI_API_KEY` in `.env.local` on the server, never with a `NEXT_PUBLIC_` prefix.
-3. Set `GEMINI_MODEL` (default `gemini-3.5-flash`) and run `npm run ai:check`.
-   - A model can appear in the list yet be **unavailable to new keys**. For example, `gemini-2.5-flash` returns *"no longer available to new users"*.
-   - LearnFlow never silently swaps models. If the configured model can't be used, every AI feature reports the exact model and Google's reason, and `/settings/ai` shows it.
-4. Optional: `GEMINI_THINKING_LEVEL` (`minimal`/`low`/`medium`/`high`, default `low`) and `AI_RATE_LIMIT_PER_HOUR` (default 40 per user).
+1. Create an API key at <https://console.groq.com/keys>.
+2. Set `GROQ_API_KEY` in `.env.local` on the server, never with a `NEXT_PUBLIC_` prefix.
+3. Set `GROQ_MODEL` (default `openai/gpt-oss-120b`) and run `npm run ai:check`. It lists the models your key can use and makes a real call with the configured one.
+   - LearnFlow never silently swaps models. If the configured model can't be used, every AI feature reports the exact model and Groq's reason, and `/settings/ai` shows it.
+4. Optional: `GROQ_REASONING_EFFORT` (`low`/`medium`/`high`, default `low`; applies to gpt-oss models) and `AI_RATE_LIMIT_PER_HOUR` (default 40 per user).
 
-What runs on Gemini:
+**Groq plan limits.** On Groq's free tier, `openai/gpt-oss-120b` allows about 8,000 tokens per minute and 1,000 requests per day per organisation. One roadmap can use most of a minute's budget, so with several active learners you'll see *"Groq's rate limit was reached. Please wait a minute and try again."* Upgrade to Groq's Developer tier for production traffic.
+
+What runs on Groq:
 
 - Roadmaps (beginner → advanced modules and subtopics), with course shapes and sources
 - Lessons and the "explain more simply / another example / Hinglish / practical case / summarise" follow-ups
@@ -123,11 +124,12 @@ What runs on Gemini:
 
 How the service behaves:
 
-- **One server-side service** (`src/lib/ai/client.ts`) handles every call: timeouts, output limits (`maxOutputTokens`), retry, error mapping, and safety blocks.
-- **Structured output**: roadmaps, lessons, quizzes, feedback and plans use `responseJsonSchema` generated from the same Zod schema that validates the result. Invalid or truncated output is retried once. If it still fails, nothing is saved and the user sees a retry message.
-- **Errors**: quota and HTTP 429, timeouts, network failures, invalid keys and unavailable models each give a friendly, specific message. Keys are scrubbed from provider messages.
-- **Duplicate protection**: identical in-flight requests (double clicks, retries while waiting) share one Gemini call. Journey creation also takes a client request id, and lessons and quizzes are cached once generated.
-- **Minimal context**: Gemini receives topic titles, levels, scores and missed concepts. It never receives emails, passwords, notes or other private data.
+- **One server-side service** (`src/lib/ai/client.ts`, Groq's official `groq-sdk`) handles every call: timeouts, output limits (`max_completion_tokens`), retry, error mapping, and content-filter refusals.
+- **Structured output**: roadmaps, lessons, quizzes, feedback and plans use `response_format: json_schema` generated from the same Zod schema that validates the result. On gpt-oss models it is strict, so decoding is constrained to the schema. Invalid or truncated output is retried once. If it still fails, nothing is saved and the user sees a retry message.
+- **Reasoning stays hidden**: gpt-oss models reason before answering. LearnFlow requests `include_reasoning: false`, so only the final answer is returned and stored.
+- **Errors**: rate limits (HTTP 429/413), timeouts, network failures, invalid keys and unavailable models each give a friendly, specific message. Keys are scrubbed from provider messages.
+- **Duplicate protection**: identical in-flight requests (double clicks, retries while waiting) share one Groq call. Journey creation also takes a client request id, and lessons and quizzes are cached once generated.
+- **Minimal context**: Groq receives topic titles, levels, scores and missed concepts. It never receives emails, passwords, notes or other private data.
 - **Labelling**: AI output is labelled "AI-generated" and kept separate from retrieved, externally sourced references.
 
 ---
@@ -136,7 +138,7 @@ How the service behaves:
 
 1. Push this repository to GitHub.
 2. In Vercel: **Add New → Project → Import** the repo. The framework is auto-detected.
-3. Add environment variables (Production and Preview): `DATABASE_URL` (pooled), `GEMINI_API_KEY`, `GEMINI_MODEL`, `NEXT_PUBLIC_SITE_URL`, plus any optional ones from `.env.example`.
+3. Add environment variables (Production and Preview): `DATABASE_URL` (pooled), `GROQ_API_KEY`, `GROQ_MODEL`, `NEXT_PUBLIC_SITE_URL`, plus any optional ones from `.env.example`.
 4. Run `npm run db:migrate` once against the production database (from your machine, or a CI step).
 5. Deploy. Vercel provides HTTPS automatically, which service workers and installation require. Fluid compute reuses the database pool across requests.
 6. AI routes declare `maxDuration` of 90–120 s. Make sure your Vercel plan allows that function duration.
@@ -292,7 +294,7 @@ Broad topics grow **incrementally**: "Map more branches" proposes one level at a
 - **Composite foreign keys** `(parent_id, user_id)` stop a row from referencing another user's records, even through the API.
 - **Server-side authorization everywhere.** The proxy redirects anonymous users, private layouts re-check the session on every request (`force-dynamic`), and every route handler and server action calls `requireUser` / `requireApiUser`.
 - **Quizzes are scored on the server.** Answer keys are never sent to the browser before submission.
-- **Secrets stay server-side.** `GEMINI_API_KEY` and `DATABASE_URL` are read only in `server-only` modules. A test scans every client component and its imports, and the browser run scanned every loaded JS bundle: no key, connection string or server module reaches the browser.
+- **Secrets stay server-side.** `GROQ_API_KEY` and `DATABASE_URL` are read only in `server-only` modules. A test scans every client component and its imports, and the browser run scanned every loaded JS bundle: no key, connection string or server module reaches the browser.
 - **Prompt-injection defence.** Learner input, catalog text and retrieved sources are fenced and marked as data. Model output is schema-validated and sanitised before anything is stored.
 - **Input validation** with Zod on every endpoint. `?next=` redirects are restricted to same-site paths.
 - **Rate limiting** for AI calls is stored in Postgres, so it holds across serverless instances. Topic suggestions have a daily cap.
@@ -339,9 +341,9 @@ LIVE_SOURCES=1 npx vitest run tests/live   # optional: hits the real Wikipedia/O
 - iPhone and Android user agents get the right install guide
 - every private page and API (including the new discovery, topic and admin routes) redirects or returns 401 without a session
 
-**Verified end to end against the real Neon database and real Gemini** (Playwright, production build):
+**Verified end to end against the real Neon database and real Groq** (Playwright, production build):
 
-- sign up → onboarding → Gemini roadmap → Gemini lesson → completion → Gemini quiz scored on the server → `/settings/ai` model check and self-test rendered in the UI
+- sign up → onboarding → Groq roadmap → Groq lesson → completion → Groq quiz scored on the server → `/settings/ai` model check and self-test rendered in the UI
 - no secrets in any JS bundle
 - signed-out redirect; wrong password rejected
 - re-login shows a welcome-back message built from saved history; `/learn` resumes at the next topic
@@ -375,7 +377,7 @@ src/
   components/         UI kit, app shell, catalog (discovery, topic, admin), curriculum tools,
                       lesson/quiz/review/tutor UIs, PWA provider & install guide
   lib/
-    ai/               Gemini service (client.ts), prompts, schemas, context builder, demo templates, rate limit
+    ai/               Groq service (client.ts), prompts, schemas, context builder, demo templates, rate limit
     catalog/          patterns, schemas, text normalisation & dedupe, discovery planning, repository
     curriculum/       build pipeline, rule-based coverage, cross-version topic mapping
     sources/          provider adapters (Wikipedia, OpenAlex), sanitising, retrieval

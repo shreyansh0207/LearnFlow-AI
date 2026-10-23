@@ -1,13 +1,14 @@
 import "server-only";
-import { ApiError, FinishReason, GoogleGenAI, ThinkingLevel } from "@google/genai";
+import Groq, { APIConnectionError, APIConnectionTimeoutError, APIError, APIUserAbortError } from "groq-sdk";
+import type { ChatCompletionCreateParamsNonStreaming, ChatCompletionMessageParam } from "groq-sdk/resources/chat/completions";
 import { z } from "zod";
-import { readAIConfig, type ThinkingLevelName } from "@/lib/env";
+import { readAIConfig, type ReasoningEffort } from "@/lib/env";
 
 /**
- * Server-side Gemini service (Google's official @google/genai SDK, Gemini API).
- * Every AI feature in LearnFlow goes through generateStructured / generateText,
- * so the API key never leaves the server and all calls share the same limits,
- * timeouts, validation and error handling.
+ * Server-side Groq service (Groq's official groq-sdk). Every AI feature in
+ * LearnFlow goes through generateStructured / generateText, so the API key never
+ * leaves the server and all calls share the same limits, timeouts, validation
+ * and error handling.
  */
 
 export type AIErrorCode =
@@ -45,30 +46,35 @@ export const AI_ERROR_STATUS: Record<AIErrorCode, number> = {
 
 const TIMEOUT_MS = 100_000;
 
-let cached: { key: string; client: GoogleGenAI } | null = null;
+let cached: { key: string; client: Groq } | null = null;
 
-function getClient(apiKey: string): GoogleGenAI {
+function getClient(apiKey: string): Groq {
   if (cached?.key === apiKey) return cached.client;
-  // The SDK retries transient failures itself; keep it to one retry so users aren't left waiting.
-  const client = new GoogleGenAI({ apiKey, httpOptions: { timeout: TIMEOUT_MS, retryOptions: { attempts: 2 } } });
+  // The SDK retries 429/5xx itself (honouring retry-after); keep it to one retry so users aren't left waiting.
+  const client = new Groq({ apiKey, timeout: TIMEOUT_MS, maxRetries: 1 });
   cached = { key: apiKey, client };
   return client;
 }
 
 function liveConfig() {
   const config = readAIConfig();
-  if (config.mode !== "live") throw new AIError("not_configured", "Gemini isn't configured on the server. Add GEMINI_API_KEY to .env.local and restart.");
+  if (config.mode !== "live") throw new AIError("not_configured", "Groq isn't configured on the server. Add GROQ_API_KEY to .env.local and restart.");
   return config;
 }
 
-const THINKING: Record<ThinkingLevelName, ThinkingLevel> = {
-  minimal: ThinkingLevel.MINIMAL,
-  low: ThinkingLevel.LOW,
-  medium: ThinkingLevel.MEDIUM,
-  high: ThinkingLevel.HIGH,
-};
+/** Reasoning models think before answering; keep that thinking out of the returned content. */
+function reasoningParams(model: string, effort: ReasoningEffort): Partial<ChatCompletionCreateParamsNonStreaming> {
+  if (/gpt-oss/i.test(model)) return { reasoning_effort: effort, include_reasoning: false };
+  if (/qwen3/i.test(model)) return { reasoning_format: "hidden" };
+  return {};
+}
 
-/** Extracts Google's readable message and removes anything that could identify the key. */
+/** Strict (constrained) JSON-schema decoding is only offered on some Groq models; others get best-effort. */
+function supportsStrictSchema(model: string): boolean {
+  return /gpt-oss/i.test(model);
+}
+
+/** Extracts Groq's readable message and removes anything that could identify the key. */
 function safeDetail(message: string): string {
   let text = message;
   try {
@@ -78,97 +84,116 @@ function safeDetail(message: string): string {
     // not JSON — use as-is
   }
   return text
-    .replace(/AIza[0-9A-Za-z_-]{20,}/g, "[key]")
-    .replace(/AQ\.[0-9A-Za-z_.-]{20,}/g, "[key]")
+    .replace(/gsk_[0-9A-Za-z]{20,}/g, "[key]")
+    .replace(/org_[0-9a-z]{10,}/g, "[org]")
     .replace(/\s+/g, " ")
     .slice(0, 240);
 }
 
+function errorCode(error: APIError): string {
+  const body = error.error as { code?: unknown; error?: { code?: unknown } } | undefined;
+  return String(body?.code ?? body?.error?.code ?? "");
+}
+
 /** Translates SDK/network errors into safe, user-presentable error codes. */
-export function mapGeminiError(error: unknown, model: string): AIError {
+export function mapGroqError(error: unknown, model: string): AIError {
   if (error instanceof AIError) return error;
-  if (error instanceof ApiError) {
+  if (error instanceof APIConnectionTimeoutError || error instanceof APIUserAbortError) {
+    return new AIError("timeout", "Groq took too long to respond. Please try again.");
+  }
+  if (error instanceof APIConnectionError) {
+    return new AIError("provider_error", "Couldn't reach Groq. Check your internet connection and try again.");
+  }
+  if (error instanceof APIError) {
     const msg = String(error.message ?? "");
+    const code = errorCode(error);
+    if (code === "json_validate_failed") {
+      return new AIError("invalid_output", "Groq returned a response that didn't match the expected format. Please try again.");
+    }
+    if (error.status === 413 || /request too large/i.test(msg)) {
+      return new AIError("provider_rate_limited", "This request is larger than the Groq plan allows per minute. Please wait a minute and try again.");
+    }
     if (error.status === 429) {
-      return new AIError("provider_rate_limited", "Gemini's quota or rate limit was reached. Please wait a minute and try again.");
+      return new AIError("provider_rate_limited", "Groq's rate limit was reached. Please wait a minute and try again.");
     }
-    if (error.status === 401 || error.status === 403 || /api key not valid|API_KEY_INVALID|API key expired/i.test(msg)) {
-      return new AIError("provider_auth", "Gemini rejected the server's credentials. An administrator needs to check GEMINI_API_KEY.");
+    if (error.status === 401 || error.status === 403 || code === "invalid_api_key" || /invalid api key/i.test(msg)) {
+      return new AIError("provider_auth", "Groq rejected the server's credentials. An administrator needs to check GROQ_API_KEY.");
     }
-    if (error.status === 404 || /not found|no longer available|not supported for generateContent/i.test(msg)) {
+    if (error.status === 404 || code === "model_not_found" || code === "model_decommissioned" || /does not exist|decommissioned|do not have access/i.test(msg)) {
       return new AIError(
         "model_unavailable",
-        `The configured Gemini model "${model}" isn't available to this API key (${safeDetail(msg)}). Set GEMINI_MODEL to a model your key can use; run \`npm run ai:check\` to list them.`,
+        `The configured Groq model "${model}" isn't available to this API key (${safeDetail(msg)}). Set GROQ_MODEL to a model your key can use; run \`npm run ai:check\` to list them.`,
       );
     }
-    if (error.status === 408 || error.status === 504) return new AIError("timeout", "Gemini took too long to respond. Please try again.");
-    if (error.status >= 500) return new AIError("provider_error", "Gemini is temporarily unavailable. Please try again shortly.");
-    return new AIError("provider_error", "Gemini couldn't process this request. Please try again.");
+    if (error.status === 408 || error.status === 504) return new AIError("timeout", "Groq took too long to respond. Please try again.");
+    if ((error.status ?? 0) >= 500) return new AIError("provider_error", "Groq is temporarily unavailable. Please try again shortly.");
+    return new AIError("provider_error", "Groq couldn't process this request. Please try again.");
   }
   const name = (error as { name?: string })?.name ?? "";
   if (name === "AbortError" || name === "TimeoutError" || /aborted|timed? ?out/i.test(String((error as Error)?.message))) {
-    return new AIError("timeout", "Gemini took too long to respond. Please try again.");
+    return new AIError("timeout", "Groq took too long to respond. Please try again.");
   }
   if (/fetch failed|ENOTFOUND|ECONNRESET|ECONNREFUSED|network/i.test(String((error as Error)?.message))) {
-    return new AIError("provider_error", "Couldn't reach Gemini. Check your internet connection and try again.");
+    return new AIError("provider_error", "Couldn't reach Groq. Check your internet connection and try again.");
   }
   return new AIError("provider_error", "Unexpected AI error. Please try again.");
 }
 
-const BLOCKED = new Set<string>([FinishReason.SAFETY, FinishReason.PROHIBITED_CONTENT, FinishReason.BLOCKLIST, FinishReason.SPII, FinishReason.RECITATION]);
-
 type GenOpts = { system: string; maxTokens: number; json?: object };
 
-async function callGemini(contents: Array<{ role: "user" | "model"; parts: Array<{ text: string }> }>, opts: GenOpts) {
+async function callGroq(turns: ChatTurn[], opts: GenOpts) {
   const config = liveConfig();
-  const ai = getClient(config.apiKey);
+  const groq = getClient(config.apiKey);
+  const messages: ChatCompletionMessageParam[] = [{ role: "system", content: opts.system }, ...turns.map((t) => ({ role: t.role, content: t.content }))];
   let response;
   try {
-    response = await ai.models.generateContent({
-      model: config.model,
-      contents,
-      config: {
-        systemInstruction: opts.system,
-        maxOutputTokens: opts.maxTokens,
-        thinkingConfig: { thinkingLevel: THINKING[config.thinking] },
-        abortSignal: AbortSignal.timeout(TIMEOUT_MS),
-        ...(opts.json ? { responseMimeType: "application/json", responseJsonSchema: opts.json } : {}),
+    response = await groq.chat.completions.create(
+      {
+        model: config.model,
+        messages,
+        max_completion_tokens: opts.maxTokens,
+        ...reasoningParams(config.model, config.reasoning),
+        ...(opts.json
+          ? { response_format: { type: "json_schema" as const, json_schema: { name: "response", strict: supportsStrictSchema(config.model), schema: opts.json as Record<string, unknown> } } }
+          : {}),
       },
-    });
+      { signal: AbortSignal.timeout(TIMEOUT_MS) },
+    );
   } catch (error) {
-    throw mapGeminiError(error, config.model);
+    throw mapGroqError(error, config.model);
   }
-  if (response.promptFeedback?.blockReason) {
-    throw new AIError("refused", "Gemini declined this request. Try rephrasing the subject or question.");
+  const choice = response.choices[0];
+  const finish = choice?.finish_reason as string | undefined;
+  if (finish === "content_filter") {
+    throw new AIError("refused", "Groq declined to generate this content. Try rephrasing the subject or question.");
   }
-  const finish = response.candidates?.[0]?.finishReason;
-  if (finish && BLOCKED.has(finish)) {
-    throw new AIError("refused", "Gemini declined to generate this content. Try rephrasing the subject or question.");
-  }
-  return { text: response.text ?? "", finish, model: response.modelVersion ?? config.model };
+  return { text: choice?.message?.content ?? "", finish, model: response.model ?? config.model };
 }
 
-/** JSON Schema for Gemini's structured output, derived from the same Zod schema used to validate. */
-export function geminiJsonSchema(schema: z.ZodType): object {
+/** JSON Schema for Groq's structured output, derived from the same Zod schema used to validate. */
+export function toResponseSchema(schema: z.ZodType): object {
   const json = z.toJSONSchema(schema, { target: "draft-2020-12", unrepresentable: "any" }) as Record<string, unknown>;
   delete json.$schema;
   return json;
 }
 
 /**
- * Requests JSON matching `schema` (Gemini structured output), then validates it
+ * Requests JSON matching `schema` (Groq structured output), then validates it
  * with Zod. Retries once if the response is truncated or fails validation, and
  * never returns unvalidated data.
  */
 export async function generateStructured<S extends z.ZodType>(opts: { schema: S; system: string; prompt: string; maxTokens?: number }): Promise<{ data: z.infer<S>; model: string }> {
-  const json = geminiJsonSchema(opts.schema);
+  const json = toResponseSchema(opts.schema);
   for (let attempt = 0; attempt < 2; attempt++) {
-    const { text, finish, model } = await callGemini([{ role: "user", parts: [{ text: opts.prompt }] }], {
-      system: opts.system,
-      maxTokens: opts.maxTokens ?? 16000,
-      json,
-    });
-    if (finish === FinishReason.MAX_TOKENS || !text) continue;
+    let result;
+    try {
+      result = await callGroq([{ role: "user", content: opts.prompt }], { system: opts.system, maxTokens: opts.maxTokens ?? 16000, json });
+    } catch (error) {
+      if (error instanceof AIError && error.code === "invalid_output") continue;
+      throw error;
+    }
+    const { text, finish, model } = result;
+    if (finish === "length" || !text) continue;
     try {
       const checked = opts.schema.safeParse(JSON.parse(text));
       if (checked.success) return { data: checked.data, model };
@@ -176,17 +201,16 @@ export async function generateStructured<S extends z.ZodType>(opts: { schema: S;
       // invalid JSON — retry once
     }
   }
-  throw new AIError("invalid_output", "Gemini returned a response that didn't pass validation, so nothing was saved. Please try again.");
+  throw new AIError("invalid_output", "Groq returned a response that didn't pass validation, so nothing was saved. Please try again.");
 }
 
 export type ChatTurn = { role: "user" | "assistant"; content: string };
 
 /** Free-text generation for tutoring and lesson follow-ups. */
 export async function generateText(opts: { system: string; messages: ChatTurn[]; maxTokens?: number }): Promise<{ text: string; model: string }> {
-  const contents = opts.messages.map((m) => ({ role: m.role === "assistant" ? ("model" as const) : ("user" as const), parts: [{ text: m.content }] }));
-  const { text, model } = await callGemini(contents, { system: opts.system, maxTokens: opts.maxTokens ?? 4000 });
+  const { text, model } = await callGroq(opts.messages, { system: opts.system, maxTokens: opts.maxTokens ?? 4000 });
   const trimmed = text.trim();
-  if (!trimmed) throw new AIError("invalid_output", "Gemini returned an empty response. Please try again.");
+  if (!trimmed) throw new AIError("invalid_output", "Groq returned an empty response. Please try again.");
   return { text: trimmed, model };
 }
 
@@ -201,7 +225,7 @@ export async function verifyModel(): Promise<{ ok: true; model: string; latencyM
     const { model } = await generateText({ system: "Reply with the single word: ready", messages: [{ role: "user", content: "Status check" }], maxTokens: 256 });
     return { ok: true, model, latencyMs: Date.now() - started };
   } catch (e) {
-    const err = e instanceof AIError ? e : mapGeminiError(e, readAIConfig().mode === "live" ? (readAIConfig() as { model: string }).model : "unknown");
+    const err = e instanceof AIError ? e : mapGroqError(e, readAIConfig().mode === "live" ? (readAIConfig() as { model: string }).model : "unknown");
     return { ok: false, code: err.code, message: err.message };
   }
 }

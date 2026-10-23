@@ -227,22 +227,22 @@ export async function tutorReply(ctx: Ctx, input: { context: string; history: Ch
 
 export async function evaluateExercise(ctx: Ctx, input: Parameters<typeof evaluatePrompt>[0]): Promise<Generated<ExerciseFeedback>> {
   const mode = await prepare(ctx, "evaluate");
-  if (mode === "demo") throw new AIError("not_configured", "Answer evaluation needs Gemini to be configured.");
+  if (mode === "demo") throw new AIError("not_configured", "Answer evaluation needs Groq to be configured.");
   const { data, model } = await generateStructured({ schema: ExerciseFeedbackSchema, system: EVALUATE_SYSTEM, prompt: evaluatePrompt(input), maxTokens: 4000 });
   return { data: sanitizeFeedback(data), source: "ai", model };
 }
 
 export async function recommendRevision(ctx: Ctx, input: { data: string; topics: string[] }): Promise<Generated<RevisionPlan>> {
   const mode = await prepare(ctx, "revision");
-  if (mode === "demo") throw new AIError("not_configured", "AI revision plans need Gemini to be configured.");
+  if (mode === "demo") throw new AIError("not_configured", "AI revision plans need Groq to be configured.");
   const { data, model } = await generateStructured({ schema: RevisionPlanSchema, system: REVISION_SYSTEM, prompt: revisionPrompt(input.data), maxTokens: 4000 });
   return { data: sanitizeRevisionPlan(data, input.topics), source: "ai", model };
 }
 
-/** Runs the fixed compound-interest prompt end to end through the real Gemini service. */
+/** Runs the fixed compound-interest prompt end to end through the real Groq service. */
 export async function runSelfTest(ctx: Ctx): Promise<{ text: string; model: string; latencyMs: number }> {
   const config = readAIConfig();
-  if (config.mode !== "live") throw new AIError("not_configured", config.mode === "unconfigured" ? config.reason : "The self-test needs a real GEMINI_API_KEY (demo mode doesn't call Gemini).");
+  if (config.mode !== "live") throw new AIError("not_configured", config.mode === "unconfigured" ? config.reason : "The self-test needs a real GROQ_API_KEY (demo mode doesn't call Groq).");
   await enforceAIRateLimit(ctx.db, ctx.userId, "selftest", config.rateLimitPerHour);
   const started = Date.now();
   const { text, model } = await generateText({ system: SELF_TEST_SYSTEM, messages: [{ role: "user", content: SELF_TEST_PROMPT }], maxTokens: 6000 });

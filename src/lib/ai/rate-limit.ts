@@ -4,7 +4,7 @@ import { AIError } from "./client";
 
 /**
  * Per-user sliding-window limit on AI calls, stored in Postgres so it holds
- * across serverless instances. The request is recorded before the Gemini call.
+ * across serverless instances. The request is recorded before the Groq call.
  */
 export async function enforceAIRateLimit(db: Db, userId: string, kind: string, limitPerHour: number) {
   let count: number;

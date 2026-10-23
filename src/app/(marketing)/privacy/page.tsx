@@ -27,7 +27,7 @@ export default function PrivacyPage() {
 
       <h3>AI processing</h3>
       <p>
-        To generate lessons, quizzes and tutor replies, we send the relevant learning context (for example your subject, goal, recent topics and quiz results) to our AI provider, Google (Gemini API), which processes it on our behalf under its terms. Only what&apos;s needed is sent: topic titles, levels, scores and the concepts you missed — never your password, email or private notes. Do not enter sensitive personal information into the tutor.
+        To generate lessons, quizzes and tutor replies, we send the relevant learning context (for example your subject, goal, recent topics and quiz results) to our AI provider, Groq, Inc. (GroqCloud API), which processes it on our behalf under its terms. Only what&apos;s needed is sent: topic titles, levels, scores and the concepts you missed — never your password, email or private notes. Do not enter sensitive personal information into the tutor.
       </p>
 
       <h3>Knowledge catalog and topic requests</h3>

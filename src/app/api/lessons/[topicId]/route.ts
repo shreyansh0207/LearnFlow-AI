@@ -33,7 +33,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ top
   }
 
   try {
-    // Identical concurrent requests (double clicks, retries while waiting) share one Gemini call.
+    // Identical concurrent requests (double clicks, retries while waiting) share one Groq call.
     const result = await singleFlight(`lesson:${user.id}:${topicId}:${variant}:${regenerate}`, () => generateAndSave());
     return NextResponse.json(result);
   } catch (err) {

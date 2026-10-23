@@ -8,7 +8,7 @@ import { requireApiUser } from "@/lib/auth";
 export const maxDuration = 120;
 
 /**
- * Sends the fixed compound-interest prompt to Gemini through the real server-side
+ * Sends the fixed compound-interest prompt to Groq through the real server-side
  * service and returns the generated lesson. Nothing is saved: this is a check.
  */
 export async function POST() {

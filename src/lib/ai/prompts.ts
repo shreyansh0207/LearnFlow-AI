@@ -354,7 +354,7 @@ export function revisionPrompt(data: string): string {
 ${data}`;
 }
 
-/** The fixed prompt used by the Gemini self-test (Settings → AI status, `npm run test:live`). */
+/** The fixed prompt used by the Groq self-test (Settings → AI status, `npm run test:live`). */
 export const SELF_TEST_PROMPT = "Teach me compound interest from absolute beginner level, give one practical example, and finish with three quiz questions.";
 
 export const SELF_TEST_SYSTEM = `${TEACHER_PERSONA}

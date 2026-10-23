@@ -51,7 +51,7 @@ export default async function SettingsPage() {
         </Link>
         <Link href="/settings/ai" className="flex items-center gap-3 border-t border-border px-5 py-4 text-sm hover:bg-surface-2">
           <Sparkles aria-hidden className="size-[18px] text-muted" />
-          <span className="flex-1 font-medium">AI status & Gemini self-test</span>
+          <span className="flex-1 font-medium">AI status & Groq self-test</span>
           <ChevronRight aria-hidden className="size-4 text-muted" />
         </Link>
       </Card>

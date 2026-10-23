@@ -13,13 +13,13 @@
     "catalog:seed": "node scripts/generate-catalog-seed.mjs",
     "db:migrate": "node --env-file=.env.local scripts/migrate.mjs",
     "test:live": "node --env-file=.env.local node_modules/vitest/vitest.mjs run tests/live",
-    "ai:check": "node --env-file=.env.local scripts/gemini-check.mjs",
+    "ai:check": "node --env-file=.env.local scripts/groq-check.mjs",
     "db:verify": "node --env-file=.env.local scripts/db-verify.mjs"
   },
   "dependencies": {
-    "@google/genai": "^2.31.0",
     "@vercel/functions": "^3.10.3",
     "clsx": "^2.1.1",
+    "groq-sdk": "^1.6.0",
     "lucide-react": "^1.61.0",
     "next": "^16.4.3",
     "pg": "^8.23.1",

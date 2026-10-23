@@ -14,31 +14,31 @@ export function readDatabaseEnv(source: Record<string, string | undefined> = pro
   return { ok: true, value: { url } };
 }
 
-export const THINKING_LEVELS = ["minimal", "low", "medium", "high"] as const;
-export type ThinkingLevelName = (typeof THINKING_LEVELS)[number];
+export const REASONING_EFFORTS = ["low", "medium", "high"] as const;
+export type ReasoningEffort = (typeof REASONING_EFFORTS)[number];
 
 export type AIConfig =
-  | { mode: "live"; provider: "gemini"; apiKey: string; model: string; thinking: ThinkingLevelName; rateLimitPerHour: number }
+  | { mode: "live"; provider: "groq"; apiKey: string; model: string; reasoning: ReasoningEffort; rateLimitPerHour: number }
   | { mode: "demo"; rateLimitPerHour: number }
   | { mode: "unconfigured"; reason: string };
 
-/** Used only when GEMINI_MODEL is unset; verified available for this key with `npm run ai:check`. */
-export const DEFAULT_GEMINI_MODEL = "gemini-3.5-flash";
+/** Used only when GROQ_MODEL is unset; verified available for this key with `npm run ai:check`. */
+export const DEFAULT_GROQ_MODEL = "openai/gpt-oss-120b";
 
 /**
- * Gemini configuration, read ONLY from server-side environment variables.
+ * Groq configuration, read ONLY from server-side environment variables.
  * The key is never exposed through NEXT_PUBLIC_* variables or client bundles.
  */
 export function readAIConfig(source: Record<string, string | undefined> = process.env): AIConfig {
-  const apiKey = source.GEMINI_API_KEY?.trim();
+  const apiKey = source.GROQ_API_KEY?.trim();
   const rateLimit = Number.parseInt(source.AI_RATE_LIMIT_PER_HOUR ?? "", 10);
   const rateLimitPerHour = Number.isFinite(rateLimit) && rateLimit > 0 ? rateLimit : 40;
 
   if (apiKey) {
-    const thinkingRaw = (source.GEMINI_THINKING_LEVEL ?? "low").trim().toLowerCase() as ThinkingLevelName;
-    const thinking = THINKING_LEVELS.includes(thinkingRaw) ? thinkingRaw : "low";
-    const model = source.GEMINI_MODEL?.trim() || DEFAULT_GEMINI_MODEL;
-    return { mode: "live", provider: "gemini", apiKey, model, thinking, rateLimitPerHour };
+    const reasoningRaw = (source.GROQ_REASONING_EFFORT ?? "low").trim().toLowerCase() as ReasoningEffort;
+    const reasoning = REASONING_EFFORTS.includes(reasoningRaw) ? reasoningRaw : "low";
+    const model = source.GROQ_MODEL?.trim() || DEFAULT_GROQ_MODEL;
+    return { mode: "live", provider: "groq", apiKey, model, reasoning, rateLimitPerHour };
   }
   if (source.LEARNFLOW_DEMO_MODE?.trim().toLowerCase() === "true") {
     return { mode: "demo", rateLimitPerHour };
@@ -46,7 +46,7 @@ export function readAIConfig(source: Record<string, string | undefined> = proces
   return {
     mode: "unconfigured",
     reason:
-      "AI is not configured. Add GEMINI_API_KEY (and optionally GEMINI_MODEL) to .env.local on the server and restart, or set LEARNFLOW_DEMO_MODE=true to use clearly labelled template content for testing.",
+      "AI is not configured. Add GROQ_API_KEY (and optionally GROQ_MODEL) to .env.local on the server and restart, or set LEARNFLOW_DEMO_MODE=true to use clearly labelled template content for testing.",
   };
 }
 

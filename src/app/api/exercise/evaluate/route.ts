@@ -14,7 +14,7 @@ const Body = z.object({
   answer: z.string().trim().min(10, { message: "Write a little more so your answer can be assessed" }).max(4000),
 });
 
-/** Gemini feedback on a learner's written exercise answer, judged against the lesson's model answer. */
+/** Groq feedback on a learner's written exercise answer, judged against the lesson's model answer. */
 export async function POST(request: Request) {
   const auth = await requireApiUser();
   if (auth instanceof NextResponse) return auth;

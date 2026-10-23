@@ -125,7 +125,7 @@ describe("database security (static audit of the migration)", () => {
     for (const f of [...clientFiles, ...imported]) {
       const src = readFileSync(f, "utf8");
       const rel = path.relative(root, f);
-      expect(src, rel).not.toMatch(/GEMINI_API_KEY|DATABASE_URL|SERVICE_ROLE|process\.env\.(?!NEXT_PUBLIC_|NODE_ENV)/);
+      expect(src, rel).not.toMatch(/GROQ_API_KEY|GEMINI_API_KEY|DATABASE_URL|SERVICE_ROLE|process\.env\.(?!NEXT_PUBLIC_|NODE_ENV)/);
       expect(src, rel).not.toMatch(/from "@\/lib\/(db|ai\/client|auth\/session|auth\/password)"/);
       expect(src, rel).not.toMatch(/@google\/genai|from "pg"/);
     }

@@ -64,7 +64,7 @@ export async function POST(request: Request) {
     return { body: { journeyId: journey.id, source: result.source }, status: 201 };
   } catch (err) {
     if (err instanceof AIError || err instanceof InvalidAIOutputError) {
-      const message = err instanceof AIError ? err.message : "Gemini returned a roadmap that didn't pass validation, so nothing was saved. Please try again.";
+      const message = err instanceof AIError ? err.message : "Groq returned a roadmap that didn't pass validation, so nothing was saved. Please try again.";
       return { body: { journeyId: journey.id, curriculumError: { code: err instanceof AIError ? err.code : "invalid_output", message } }, status: 201 };
     }
     const r = handleRouteError(err);

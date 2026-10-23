@@ -16,19 +16,20 @@ describe("environment validation", () => {
     expect(readDatabaseEnv({ DATABASE_URL: "postgresql://u:p@ep-x-pooler.neon.tech/db?sslmode=require" }).ok).toBe(true);
   });
 
-  it("TEST 4 — missing Gemini credentials produce a clear setup message, never a silent fake", () => {
+  it("TEST 4 — missing Groq credentials produce a clear setup message, never a silent fake", () => {
     const r = readAIConfig({});
     expect(r.mode).toBe("unconfigured");
-    if (r.mode === "unconfigured") expect(r.reason).toMatch(/GEMINI_API_KEY/);
+    if (r.mode === "unconfigured") expect(r.reason).toMatch(/GROQ_API_KEY/);
     expect(readAIConfig({ LEARNFLOW_DEMO_MODE: "true" }).mode).toBe("demo");
   });
 
-  it("reads the Gemini key and model from server env only, with a documented default model", () => {
-    expect(readAIConfig({ GEMINI_API_KEY: "k", GEMINI_MODEL: "gemini-x" })).toMatchObject({ mode: "live", provider: "gemini", model: "gemini-x", thinking: "low" });
-    expect(readAIConfig({ GEMINI_API_KEY: "k" })).toMatchObject({ model: "gemini-3.5-flash" });
-    expect(readAIConfig({ GEMINI_API_KEY: "k", GEMINI_THINKING_LEVEL: "bogus" })).toMatchObject({ thinking: "low" });
+  it("reads the Groq key and model from server env only, with a documented default model", () => {
+    expect(readAIConfig({ GROQ_API_KEY: "k", GROQ_MODEL: "llama-x" })).toMatchObject({ mode: "live", provider: "groq", model: "llama-x", reasoning: "low" });
+    expect(readAIConfig({ GROQ_API_KEY: "k" })).toMatchObject({ model: "openai/gpt-oss-120b" });
+    expect(readAIConfig({ GROQ_API_KEY: "k", GROQ_REASONING_EFFORT: "bogus" })).toMatchObject({ reasoning: "low" });
+    expect(readAIConfig({ GROQ_API_KEY: "k", GROQ_REASONING_EFFORT: "High" })).toMatchObject({ reasoning: "high" });
     // A NEXT_PUBLIC_ variable must never be treated as the key.
-    expect(readAIConfig({ NEXT_PUBLIC_GEMINI_API_KEY: "leak" }).mode).toBe("unconfigured");
+    expect(readAIConfig({ NEXT_PUBLIC_GROQ_API_KEY: "leak" }).mode).toBe("unconfigured");
   });
 });
 
