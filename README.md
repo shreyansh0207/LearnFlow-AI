@@ -140,8 +140,9 @@ How the service behaves:
 2. In Vercel: **Add New → Project → Import** the repo. The framework is auto-detected.
 3. Add environment variables (Production and Preview): `DATABASE_URL` (pooled), `GROQ_API_KEY`, `GROQ_MODEL`, `NEXT_PUBLIC_SITE_URL`, plus any optional ones from `.env.example`.
 4. Run `npm run db:migrate` once against the production database (from your machine, or a CI step).
-5. Deploy. Vercel provides HTTPS automatically, which service workers and installation require. Fluid compute reuses the database pool across requests.
-6. AI routes declare `maxDuration` of 90–120 s. Make sure your Vercel plan allows that function duration.
+5. **Region.** `vercel.json` pins functions to `sin1` (Singapore), the same region as the Neon database. Each page makes several database round trips, so a far-away region roughly doubles response times. If your Neon project is elsewhere, change it to the nearest Vercel region.
+6. Deploy. Vercel provides HTTPS automatically, which service workers and installation require. Fluid compute reuses the database pool across requests.
+7. AI routes declare `maxDuration` of 90–120 s. Make sure your Vercel plan allows that function duration.
 
 Any Node host with HTTPS works (`npm run build && npm start`).
 

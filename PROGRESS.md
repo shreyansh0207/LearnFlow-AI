@@ -55,7 +55,7 @@ LIVE_GROQ=1 npm run test:live
 ## Known issues / next ideas
 
 - **Groq free-tier limits**: about 8,000 tokens/minute and 1,000 requests/day for gpt-oss-120b. A roadmap uses a large share of one minute, so concurrent users can hit "Groq's rate limit was reached". Upgrade to Groq's Developer tier for real traffic.
-- **Vercel deployment pending**: this machine's Vercel login is the Rich Harbor account. Deploying to the Shreyansh Connect account needs that account signed in (`vercel login`). Set `DATABASE_URL`, `GROQ_API_KEY`, `GROQ_MODEL` and `NEXT_PUBLIC_SITE_URL` there.
+- **Live:** https://learn-flow-ai-beta.vercel.app. The full browser E2E (15/15) passed against it on 2026-10-24. Functions are pinned to `sin1` (next to Neon) via `vercel.json`.
 
 - **No email delivery**: sign-up doesn't confirm email addresses, and reset links appear only in the dev server console.
 - **Pre-hydration submits.** If a sign-in form is submitted in the instant before React hydrates, the replayed submission can arrive empty. The user sees a validation message and resubmits. True no-JS submissions work (HTTP 303 redirect).
